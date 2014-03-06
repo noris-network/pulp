@@ -2,16 +2,17 @@
 
 .. _qpid-ssl-configuration:
 
-Qpid SSL Configuration
-======================
+Qpid SSL and ACL Configuration
+==============================
 
 Overview
 --------
 
-The steps to reconfigure both Pulp and Qpid to communicate using SSL are as follows:
+The steps to reconfigure both Pulp and Qpid to communicate using SSL and to
+secure qpid with ACLs are as follows:
 
 1. Generate x.509 keys, certificates and NSS database.
-2. Edit ``/etc/qpidd.conf`` to require SSL and define certificates.
+2. Edit ``/etc/qpidd.conf`` to require SSL, define certificates, and use ACLs.
 3. Edit ``/etc/pulp/server.conf`` *messaging* section so that the server will connect to
    the Qpid broker using SSL.
 4. On each consumer, edit ``/etc/pulp/consumer/consumer.conf`` *messaging* section
@@ -22,7 +23,10 @@ The steps to reconfigure both Pulp and Qpid to communicate using SSL are as foll
   * ``/etc/pki/pulp/qpid/client.crt``
 
 6. Make sure the ``qpid-cpp-server-ssl`` RPM is installed.
-7. Restart qpidd, httpd and pulp-agent
+7. Configure qpid users for the server and consumer roles.
+8. Create ACL file
+9. Uninstall or configure cyrus-sasl-gssapi
+10. Restart qpidd, httpd and pulp-agent
 
 
 Details
@@ -112,7 +116,8 @@ The following is an example of running the script:
 
   Recommended properties in /etc/qpidd.conf:
 
-  auth=no
+  acl-file=/etc/qpid/pulp.acl
+  auth=yes
   # SSL
   require-encryption=yes
   ssl-require-client-authentication=yes
@@ -127,7 +132,7 @@ The following is an example of running the script:
 
   ...
   [messaging]
-  url=ssl://<host>:5671
+  url=ssl://<username>:<password>@<host>:5671
   cacert=/etc/pki/pulp/qpid/ca.crt
   clientcert=/etc/pki/pulp/qpid/client.crt
 
@@ -136,6 +141,8 @@ The following is an example of running the script:
 
   ...
   [messaging]
+  username=<username>
+  password=<password>
   scheme=ssl
   port=5671
   cacert=/etc/pki/pulp/qpid/ca.crt
@@ -164,8 +171,11 @@ reconfigured to accept only SSL connections using the key and certificates store
 NSS database.  The ``/etc/qpidd.conf`` needs to be edited and the following SSL related
 properties defined as follows:
 
+*acl-file*
+    Path to an ACL file. (value: /etc/qpid/pulp.acl)
+
 *auth*
-    Require authentication. (value: no)
+    Require authentication. (value: yes)
 
 *require-encryption*
     Require all connections to use SSL. (value: yes)
@@ -261,8 +271,55 @@ To support SSL, the Qpid broker must have the SSL module installed.  This module
 is provided by the ``qpid-cpp-server-ssl`` package.  Make sure this package is installed.
 
 
-Step #7 - Restart services
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+Step #7 - Create qpid users
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This step is only neccessary if ``auth=yes`` has been set in qpid's config.
+
+In order to use the ACLs, each qpid connection must be authenticated as a known
+user. Qpid keeps these users in a SASL database. Give each a password that will
+go in either the server or consumer config file. The user names below must match
+the user names in the ACL file, in case you want to use different values.
+
+Given the value of "consumer@QPID" in this command, you would set the
+connection's username in ``/etc/pulp/consumer/consumer.conf`` as just "consumer".
+The same applies to the server username in ``/etc/pulp/server.conf``.
+
+::
+
+ sudo -u qpidd saslpasswd2 -f /var/lib/qpidd/qpidd.sasldb consumer@QPID
+ sudo -u qpidd saslpasswd2 -f /var/lib/qpidd/qpidd.sasldb server@QPID
+
+
+Step #8 - Create ACL file
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Create an ACL file at the path you set in qpid's config with the following
+contents::
+
+  acl allow server@QPID all all
+  acl allow consumer@QPID consume all
+  acl allow consumer@QPID create exchange name=heartbeat
+  acl allow consumer@QPID create queue
+  acl allow consumer@QPID publish exchange name=heartbeat
+  acl allow consumer@QPID publish exchange routingkey=pulp.task
+  acl allow consumer@QPID access exchange
+  acl allow consumer@QPID access queue
+  acl deny all all
+
+
+Step #9 - Uninstall or configure cyrus-sasl-gssapi
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+On RHEL6 and possibly other platforms, the mere presense of the package
+"cyrus-sasl-gssapi" in its default configuration will
+`break SASL authentication <https://bugzilla.redhat.com/show_bug.cgi?id=693840>`_
+for qpid. Uninstalling this package works around the problem, or the reader may
+be able to configure gssapi correctly.
+
+
+Step #10 - Restart services
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Now that the Qpid and pulp configurations have been updated, the corresponding services
 need to be restarted.

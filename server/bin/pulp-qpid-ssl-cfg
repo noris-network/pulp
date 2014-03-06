@@ -214,7 +214,8 @@ rm -rf $DIR
 
 echo "Recommended properties in qpidd.conf:"
 echo "
-auth=no
+acl-file=/etc/qpid/pulp.acl
+auth=yes
 # SSL
 require-encryption=yes
 ssl-require-client-authentication=yes
@@ -229,7 +230,7 @@ echo "Recommended properties in /etc/pulp/server.conf:"
 echo "
 ...
 [messaging]
-url=ssl://<host>:5671
+url=ssl://<username>:<password>@<host>:5671
 cacert=$INST_DIR/ca.crt
 clientcert=$INST_DIR/client.crt
 "
@@ -239,6 +240,8 @@ echo "Recommended properties in /etc/pulp/consumer/consumer.conf:"
 echo "
 ...
 [messaging]
+username=<username>
+password=<password>
 scheme=ssl
 port=5671
 cacert=$INST_DIR/ca.crt
