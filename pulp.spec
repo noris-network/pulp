@@ -28,7 +28,7 @@
 # ---- Pulp Platform -----------------------------------------------------------
 
 Name: pulp
-Version: 2.5.3
+Version: 2.5.4
 Release: 1%{?dist}
 Summary: An application for managing software content
 Group: Development/Languages
@@ -604,6 +604,11 @@ exit 0
 %endif # End selinux if block
 
 %changelog
+* Wed Feb 25 2015 Andreas Schieb
+- Pulp rebuild
+- pach for noris use
+
+
 * Fri Jan 30 2015 Chris Duryee <cduryee@redhat.com> 2.5.3-1
 - Pulp rebuild
 
