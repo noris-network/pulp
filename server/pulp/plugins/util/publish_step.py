@@ -22,6 +22,8 @@ from nectar.downloaders.threaded import HTTPThreadedDownloader
 
 from pulp.common.util import encode_unicode
 from pulp.plugins.util.nectar_config import importer_config_to_nectar_config
+from pulp.plugins.util import misc
+
 
 _LOG = logging.getLogger(__name__)
 
@@ -1039,11 +1041,12 @@ class GetLocalUnitsStep(PluginStep):
         units_we_already_had = set()
 
         # for any unit that is already in pulp, save it into the repo
-        for unit_dict in self.content_query_manager.get_multiple_units_by_keys_dicts(
-                self.unit_type, self.parent.available_units, self.unit_key_fields):
-            unit = self._dict_to_unit(unit_dict)
-            self.get_conduit().save_unit(unit)
-            units_we_already_had.add(unit)
+	for page in misc.paginate(self.parent.available_units, 50):
+            for unit_dict in self.content_query_manager.get_multiple_units_by_keys_dicts(
+                    self.unit_type, page, self.unit_key_fields):
+                unit = self._dict_to_unit(unit_dict)
+                self.get_conduit().save_unit(unit)
+                units_we_already_had.add(unit)
 
         for unit_key in self.parent.available_units:
             # build a temp Unit instance just to use its comparison feature
